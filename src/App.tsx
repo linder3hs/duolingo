@@ -1,6 +1,46 @@
 import { useState, useEffect } from "react";
 import { Volume2, Heart, Star, Award, Flame } from "lucide-react";
 
+// TypeScript interfaces
+interface Exercise {
+  type: string;
+  question: string;
+  options?: string[];
+  correct: string | number;
+  alternatives?: string[];
+  words?: string[];
+  audio: string;
+}
+
+interface Lesson {
+  id: string;
+  title: string;
+  exercises: Exercise[];
+}
+
+interface ProgressData {
+  completed: boolean;
+  score: number;
+  hearts: number;
+}
+
+interface CurrentLesson extends Lesson {
+  unitKey: string;
+  lessonIndex: number;
+}
+
+interface Feedback {
+  type: "correct" | "incorrect";
+  message: string;
+}
+
+interface AppData {
+  progress: Record<string, Record<string, ProgressData>>;
+  xp: number;
+  streak: number;
+  lastVisit: string;
+}
+
 // Datos de las lecciones
 const lessonsData = {
   unit1: {
@@ -1368,16 +1408,20 @@ const lessonsData = {
 // Componente principal
 export default function EnglishLearningApp() {
   const [screen, setScreen] = useState("home");
-  const [currentLesson, setCurrentLesson] = useState(null);
+  const [currentLesson, setCurrentLesson] = useState<CurrentLesson | null>(
+    null
+  );
   const [currentExercise, setCurrentExercise] = useState(0);
   const [answer, setAnswer] = useState("");
-  const [feedback, setFeedback] = useState(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [hearts, setHearts] = useState(5);
   const [score, setScore] = useState(0);
-  const [progress, setProgress] = useState({});
+  const [progress, setProgress] = useState<
+    Record<string, Record<string, ProgressData>>
+  >({});
   const [xp, setXp] = useState(0);
   const [streak, setStreak] = useState(0);
-  const [builtSentence, setBuiltSentence] = useState([]);
+  const [builtSentence, setBuiltSentence] = useState<string[]>([]);
 
   // Cargar datos del localStorage
   useEffect(() => {
@@ -1391,8 +1435,11 @@ export default function EnglishLearningApp() {
   }, []);
 
   // Guardar datos en localStorage
-  const saveProgress = (newProgress, newXp) => {
-    const data = {
+  const saveProgress = (
+    newProgress: Record<string, Record<string, ProgressData>>,
+    newXp: number
+  ) => {
+    const data: AppData = {
       progress: newProgress,
       xp: newXp,
       streak: streak,
@@ -1402,7 +1449,7 @@ export default function EnglishLearningApp() {
   };
 
   // Reproducir audio usando Web Speech API
-  const playAudio = (text) => {
+  const playAudio = (text: string) => {
     if ("speechSynthesis" in window) {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = "en-US";
@@ -1412,8 +1459,9 @@ export default function EnglishLearningApp() {
   };
 
   // Iniciar lección
-  const startLesson = (unitKey, lessonIndex) => {
-    const lesson = lessonsData[unitKey].lessons[lessonIndex];
+  const startLesson = (unitKey: string, lessonIndex: number) => {
+    const lesson =
+      lessonsData[unitKey as keyof typeof lessonsData].lessons[lessonIndex];
     setCurrentLesson({ ...lesson, unitKey, lessonIndex });
     setCurrentExercise(0);
     setHearts(5);
@@ -1426,6 +1474,8 @@ export default function EnglishLearningApp() {
 
   // Verificar respuesta
   const checkAnswer = () => {
+    if (!currentLesson) return;
+
     const exercise = currentLesson.exercises[currentExercise];
     let isCorrect = false;
 
@@ -1435,7 +1485,7 @@ export default function EnglishLearningApp() {
       const userAnswer = answer.toLowerCase().trim();
       isCorrect =
         userAnswer === exercise.correct ||
-        exercise.alternatives.includes(userAnswer);
+        (exercise.alternatives?.includes(userAnswer) ?? false);
     } else if (exercise.type === "build") {
       const builtAnswer = builtSentence.join(" ");
       isCorrect = builtAnswer === exercise.correct;
@@ -1453,7 +1503,7 @@ export default function EnglishLearningApp() {
           exercise.type === "build"
             ? exercise.correct
             : exercise.type === "multiple"
-            ? exercise.options[exercise.correct]
+            ? exercise.options?.[exercise.correct as number] ?? exercise.correct
             : exercise.correct
         }`,
       });
@@ -1468,6 +1518,8 @@ export default function EnglishLearningApp() {
 
   // Siguiente ejercicio
   const nextExercise = () => {
+    if (!currentLesson) return;
+
     if (currentExercise + 1 < currentLesson.exercises.length) {
       setCurrentExercise(currentExercise + 1);
       setFeedback(null);
@@ -1479,8 +1531,8 @@ export default function EnglishLearningApp() {
   };
 
   // Finalizar lección
-  const endLesson = (completed) => {
-    if (completed) {
+  const endLesson = (completed: boolean) => {
+    if (completed && currentLesson) {
       const newProgress = { ...progress };
       if (!newProgress[currentLesson.unitKey]) {
         newProgress[currentLesson.unitKey] = {};
@@ -1498,12 +1550,14 @@ export default function EnglishLearningApp() {
 
   // Renderizar ejercicio según tipo
   const renderExercise = () => {
+    if (!currentLesson) return null;
+
     const exercise = currentLesson.exercises[currentExercise];
 
     if (exercise.type === "multiple") {
       return (
         <div className="space-y-4">
-          {exercise.options.map((option, idx) => (
+          {exercise.options?.map((option: string, idx: number) => (
             <button
               key={idx}
               onClick={() => setAnswer(idx.toString())}
@@ -1537,7 +1591,7 @@ export default function EnglishLearningApp() {
       return (
         <div className="space-y-6">
           <div className="min-h-[80px] p-4 border-2 border-dashed border-gray-300 rounded-xl flex flex-wrap gap-2">
-            {builtSentence.map((word, idx) => (
+            {builtSentence.map((word: string, idx: number) => (
               <button
                 key={idx}
                 onClick={() =>
@@ -1550,8 +1604,8 @@ export default function EnglishLearningApp() {
             ))}
           </div>
           <div className="flex flex-wrap gap-2">
-            {exercise.words.map(
-              (word, idx) =>
+            {exercise.words?.map(
+              (word: string, idx: number) =>
                 !builtSentence.includes(word) && (
                   <button
                     key={idx}
@@ -1648,6 +1702,8 @@ export default function EnglishLearningApp() {
 
   // Pantalla de lección
   if (screen === "lesson") {
+    if (!currentLesson) return null;
+
     const exercise = currentLesson.exercises[currentExercise];
     const progressPercent =
       ((currentExercise + 1) / currentLesson.exercises.length) * 100;
@@ -1744,6 +1800,8 @@ export default function EnglishLearningApp() {
 
   // Pantalla de resultados
   if (screen === "result") {
+    if (!currentLesson) return null;
+
     const finalScore = Math.round(
       (score / currentLesson.exercises.length) * 100
     );
